@@ -1,0 +1,122 @@
+[
+  {
+    "Id": "WIN-GAMEMODE-001",
+    "Nombre": "Forzar Game Mode Estricto",
+    "Categoria": "CPU",
+    "Descripcion": "Habilita el Game Mode a nivel de kernel, priorizando hilos de juegos sobre procesos en segundo plano.",
+    "Riesgo": "Safe",
+    "RequiereReinicio": false,
+    "Evidencia": {
+      "Explicacion": "El Game Mode evita preempts en threads del juego, reduciendo el stuttering.",
+      "Nivel": "Oficial",
+      "Confianza": 95,
+      "Fuentes": [
+        { "Url": "https://docs.microsoft.com", "Descripcion": "Documentación Oficial de Microsoft", "Autor": "Microsoft" }
+      ]
+    },
+    "Acciones": [
+      {
+        "RutaRegistro": "HKEY_CURRENT_USER\\Software\\Microsoft\\GameBar",
+        "NombreValor": "AutoGameModeEnabled",
+        "ValorDeseado": "1",
+        "TipoValor": "DWord"
+      }
+    ]
+  },
+  {
+    "Id": "WIN-USBPOWER-001",
+    "Nombre": "Desactivar Suspensión Selectiva USB",
+    "Categoria": "Dispositivos",
+    "Riesgo": "Advanced",
+    "RequiereReinicio": false,
+    "Descripcion": "Previene que el SO apague puertos USB, eliminando micro-cortes en ratones de 1000Hz+.",
+    "Evidencia": {
+      "Explicacion": "Suspender puertos interrumpe el polling rate del mouse, añadiendo ms de input lag.",
+      "Nivel": "Tecnica",
+      "Confianza": 88,
+      "Fuentes": [
+        { "Url": "https://blurbusters.com", "Descripcion": "Blur Busters Mouse Polling Guide", "Autor": "Blur Busters" }
+      ]
+    },
+    "Acciones": [
+      {
+        "RutaRegistro": "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\USB",
+        "NombreValor": "DisableSelectiveSuspend",
+        "ValorDeseado": "1",
+        "TipoValor": "DWord"
+      }
+    ]
+  },
+  {
+    "Id": "WIN-HAGS-001",
+    "Nombre": "Hardware-Accelerated GPU Scheduling (HAGS)",
+    "Categoria": "GPU",
+    "Riesgo": "Safe",
+    "RequiereReinicio": true,
+    "Descripcion": "Delega la gestión de memoria de video al procesador de la GPU.",
+    "Evidencia": {
+      "Explicacion": "Mejora el 1% lows en sistemas con cuello de botella de CPU al liberar la carga de scheduling.",
+      "Nivel": "Oficial",
+      "Confianza": 92,
+      "Fuentes": [
+        { "Url": "https://nvidia.com", "Descripcion": "NVIDIA HAGS Performance Analysis", "Autor": "NVIDIA" }
+      ]
+    },
+    "Acciones": [
+      {
+        "RutaRegistro": "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+        "NombreValor": "HwSchMode",
+        "ValorDeseado": "2",
+        "TipoValor": "DWord"
+      }
+    ]
+  },
+  {
+    "Id": "WIN-MMCSS-001",
+    "Nombre": "Optimización SystemResponsiveness",
+    "Categoria": "Kernel",
+    "Riesgo": "Safe",
+    "RequiereReinicio": true,
+    "Descripcion": "Reduce el % de CPU reservado para servicios de baja prioridad.",
+    "Evidencia": {
+      "Explicacion": "Permite que el hilo del juego ocupe el 90-100% en lugar del 80% máximo por defecto.",
+      "Nivel": "Oficial",
+      "Confianza": 90,
+      "Fuentes": [
+        { "Url": "https://docs.microsoft.com", "Descripcion": "MMCSS Docs", "Autor": "Microsoft" }
+      ]
+    },
+    "Acciones": [
+      {
+        "RutaRegistro": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+        "NombreValor": "SystemResponsiveness",
+        "ValorDeseado": "10",
+        "TipoValor": "DWord"
+      }
+    ]
+  },
+  {
+    "Id": "WIN-DUMMY-001",
+    "Nombre": "Prueba de Seguridad y Reversión (Dummy)",
+    "Categoria": "Test",
+    "Descripcion": "Regla inofensiva para probar que el sistema de historial y rollback funciona al 100%.",
+    "Riesgo": "Safe",
+    "RequiereReinicio": false,
+    "Evidencia": {
+      "Explicacion": "Crea una clave inútil en el registro para validar la seguridad del motor.",
+      "Nivel": "Tecnica",
+      "Confianza": 100,
+      "Fuentes": [
+        { "Url": "local", "Descripcion": "Prueba Interna", "Autor": "WPE" }
+      ]
+    },
+    "Acciones": [
+      {
+        "RutaRegistro": "HKEY_CURRENT_USER\\Software\\WPETest",
+        "NombreValor": "PruebaRollback",
+        "ValorDeseado": "1",
+        "TipoValor": "DWord"
+      }
+    ]
+  }
+]
