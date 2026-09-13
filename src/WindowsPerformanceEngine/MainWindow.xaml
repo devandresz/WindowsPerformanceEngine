@@ -186,22 +186,44 @@
                             <!-- Visual Benchmark Panel -->
                             <Border x:Name="PnlGraficosBenchmark" Style="{StaticResource ZenCardStyle}" Margin="0,20,0,0" Visibility="Collapsed">
                                 <StackPanel>
-                                    <TextBlock Text="MÉTRICAS ETW GRÁFICAS (ANTES VS DESPUÉS)" Foreground="#F8FAFC" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,20"/>
+                                    <TextBlock Text="BENCHMARK GAMING (POR PROCESO ETW)" Foreground="#F8FAFC" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,20"/>
                                     
-                                    <!-- Controles de Red y Baseline -->
+                                    <!-- Controles de Proceso y Duración -->
+                                    <Grid Margin="0,0,0,20">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <TextBlock Grid.Column="0" Text="Proceso Objetivo:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                                        <ComboBox x:Name="CmbProcesos" Grid.Column="1" Background="#0F111A" Foreground="#F8FAFC" Margin="0,0,15,0" Padding="8" VerticalContentAlignment="Center"/>
+                                        
+                                        <Button x:Name="BtnActualizarProcesos" Grid.Column="2" Content="ACTUALIZAR PROCESOS" Style="{StaticResource ZenPrimaryButtonStyle}" Click="BtnActualizarProcesos_Click" Width="200"/>
+                                    </Grid>
+
                                     <Grid Margin="0,0,0,20">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="150"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         
-                                        <TextBlock Grid.Column="0" Text="Destino de Prueba:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,15,0"/>
-                                        <TextBox x:Name="TxtHostPing" Grid.Column="1" Text="8.8.8.8" Background="#0F111A" Foreground="#F8FAFC" BorderBrush="#0DFFFFFF" BorderThickness="1" Padding="8" VerticalAlignment="Center"/>
-                                        
-                                        <Button x:Name="BtnTomarBaseline" Grid.Column="3" Content="Tomar Baseline" Style="{StaticResource ZenPrimaryButtonStyle}" Click="BtnTomarBaseline_Click"/>
+                                        <TextBlock Grid.Column="0" Text="Duración:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                                        <ComboBox x:Name="CmbDuracion" Grid.Column="1" Background="#0F111A" Foreground="#F8FAFC" Margin="0,0,15,0" Padding="8" VerticalContentAlignment="Center" SelectedIndex="0">
+                                            <ComboBoxItem Content="Manual"/>
+                                            <ComboBoxItem Content="30 s"/>
+                                            <ComboBoxItem Content="60 s"/>
+                                            <ComboBoxItem Content="5 min"/>
+                                        </ComboBox>
+
+                                        <Button x:Name="BtnIniciarBenchmark" Grid.Column="3" Content="INICIAR BENCHMARK" Style="{StaticResource ZenPrimaryButtonStyle}" Click="BtnIniciarBenchmark_Click" Margin="0,0,10,0" Width="180"/>
+                                        <Button x:Name="BtnDetenerBenchmark" Grid.Column="4" Content="DETENER BENCHMARK" Style="{StaticResource ZenPrimaryButtonStyle}" Click="BtnDetenerBenchmark_Click" Width="180" IsEnabled="False" Background="#4A5568"/>
                                     </Grid>
+
+                                    <TextBlock x:Name="TxtEstadoBenchmark" Text="Estado: Esperando" Foreground="#F8FAFC" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,20"/>
                                     
                                     <Grid Margin="0,0,0,15">
                                         <Grid.ColumnDefinitions>
@@ -209,9 +231,9 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="80"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="FPS Promedio (DWM/Global):" Foreground="#F8FAFC"/>
+                                        <TextBlock Grid.Column="0" Text="FPS Promedio (Present):" Foreground="#F8FAFC"/>
                                         <ProgressBar x:Name="PbFps" Grid.Column="1" Minimum="0" Maximum="1000" Value="0" Height="10" Foreground="#64FFDA" Background="#0F111A" BorderThickness="0"/>
-                                        <TextBlock x:Name="TxtFpsValor" Grid.Column="2" Text="0" Foreground="#64FFDA" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                        <TextBlock x:Name="TxtFpsValor" Grid.Column="2" Text="NO DISP." Foreground="#64FFDA" FontWeight="SemiBold" HorizontalAlignment="Right"/>
                                     </Grid>
 
                                     <Grid Margin="0,0,0,15">
@@ -220,9 +242,20 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="80"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="1% Lows (DWM):" Foreground="#F8FAFC"/>
+                                        <TextBlock Grid.Column="0" Text="1% Lows (Present):" Foreground="#F8FAFC"/>
                                         <ProgressBar x:Name="PbLows" Grid.Column="1" Minimum="0" Maximum="1000" Value="0" Height="10" Foreground="#00D8FF" Background="#0F111A" BorderThickness="0"/>
-                                        <TextBlock x:Name="TxtLowsValor" Grid.Column="2" Text="0" Foreground="#00D8FF" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                        <TextBlock x:Name="TxtLowsValor" Grid.Column="2" Text="NO DISP." Foreground="#00D8FF" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,15">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="140"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="80"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="0.1% Lows (Present):" Foreground="#F8FAFC"/>
+                                        <ProgressBar x:Name="PbZeroOneLows" Grid.Column="1" Minimum="0" Maximum="1000" Value="0" Height="10" Foreground="#FF459A" Background="#0F111A" BorderThickness="0"/>
+                                        <TextBlock x:Name="TxtZeroOneLowsValor" Grid.Column="2" Text="NO DISP." Foreground="#FF459A" FontWeight="SemiBold" HorizontalAlignment="Right"/>
                                     </Grid>
 
                                     <Grid Margin="0,0,0,15">
@@ -233,7 +266,27 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0" Text="Frametime (ms):" Foreground="#F8FAFC"/>
                                         <ProgressBar x:Name="PbFrametime" Grid.Column="1" Minimum="0" Maximum="100" Value="0" Height="10" Foreground="#94A3B8" Background="#0F111A" BorderThickness="0"/>
-                                        <TextBlock x:Name="TxtFrametimeValor" Grid.Column="2" Text="0" Foreground="#94A3B8" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                        <TextBlock x:Name="TxtFrametimeValor" Grid.Column="2" Text="NO DISP." Foreground="#94A3B8" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,15">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="140"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Muestras válidas:" Foreground="#94A3B8"/>
+                                        <TextBlock x:Name="TxtMuestrasValor" Grid.Column="2" Text="0" Foreground="#94A3B8" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    
+                                    <Grid Margin="0,0,0,15">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="140"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="140"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Duración:" Foreground="#94A3B8"/>
+                                        <TextBlock x:Name="TxtDuracionValor" Grid.Column="2" Text="0.0 s" Foreground="#94A3B8" FontWeight="SemiBold" HorizontalAlignment="Right"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>

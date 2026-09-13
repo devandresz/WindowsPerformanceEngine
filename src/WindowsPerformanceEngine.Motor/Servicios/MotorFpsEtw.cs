@@ -14,11 +14,13 @@ namespace WindowsPerformanceEngine.Motor.Servicios
         private readonly List<double> _frameTimesMs = new();
         private long _lastPresentTime = 0;
         private bool _isListening = false;
+        private int? _pidObjetivo = null;
 
-        public void IniciarCaptura()
+        public void IniciarCaptura(int? pidObjetivo = null)
         {
             if (_isListening) return;
             
+            _pidObjetivo = pidObjetivo;
             _frameTimesMs.Clear();
             _lastPresentTime = 0;
             _isListening = true;
@@ -40,6 +42,11 @@ namespace WindowsPerformanceEngine.Motor.Servicios
                             // DXGKrnl Present/PresentHistory Event (EventID 2 or similar depending on OS version, commonly we filter by event name)
                             if (data.EventName.Contains("Present", StringComparison.OrdinalIgnoreCase))
                             {
+                                if (_pidObjetivo.HasValue && data.ProcessID != _pidObjetivo.Value)
+                                {
+                                    return; // Descartar evento si no pertenece al PID objetivo
+                                }
+
                                 long currentTime = data.TimeStamp.Ticks;
                                 if (_lastPresentTime > 0)
                                 {
@@ -74,11 +81,11 @@ namespace WindowsPerformanceEngine.Motor.Servicios
             _session = null;
         }
 
-        public (double FpsPromedio, double FrametimePromedio, double Fps1Porciento, double Fps01Porciento) ObtenerResultados()
+        public (double FpsPromedio, double FrametimePromedio, double Fps1Porciento, double Fps01Porciento, int MuestrasValidas) ObtenerResultados()
         {
             lock (_frameTimesMs)
             {
-                if (_frameTimesMs.Count < 2) return (-1, -1, -1, -1);
+                if (_frameTimesMs.Count < 2) return (-1, -1, -1, -1, _frameTimesMs.Count);
 
                 double avgFrametime = _frameTimesMs.Average();
                 double fpsPromedio = 1000.0 / avgFrametime;
@@ -100,7 +107,7 @@ namespace WindowsPerformanceEngine.Motor.Servicios
                     fps01Porciento = 1000.0 / avg01PercentHighestFrametimes;
                 }
 
-                return (fpsPromedio, avgFrametime, fps1Porciento, fps01Porciento);
+                return (fpsPromedio, avgFrametime, fps1Porciento, fps01Porciento, _frameTimesMs.Count);
             }
         }
 

@@ -26,6 +26,12 @@ namespace WindowsPerformanceEngine.Motor.Dominio.Modelos
         public double ThroughputMbps { get; set; }
         public double DnsLookupMs { get; set; }
         
+        // --- Nuevos campos para Benchmark Gaming ---
+        public int PidObjetivo { get; set; } = 0;
+        public string ProcesoObjetivo { get; set; } = string.Empty;
+        public int MuestrasValidas { get; set; } = 0;
+        public double DuracionSegundos { get; set; } = 0;
+        
         // Análisis de Ruido
         public bool EsMejoraSignificativa(ResultadoPrueba baseline)
         {

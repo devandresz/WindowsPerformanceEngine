@@ -4,6 +4,9 @@ using System.Windows.Controls;
 using System.Windows.Media.Animation;
 using System.Linq;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using WindowsPerformanceEngine.Motor.Dominio.Interfaces;
 using WindowsPerformanceEngine.Motor.Dominio.Modelos;
 using WindowsPerformanceEngine.Motor.Servicios;
@@ -28,6 +31,9 @@ namespace WindowsPerformanceEngine
         private List<ReglaOptimizacion> _reglasEnMemoria = new();
         private List<ReglaOptimizacion> _reglasAAplicar = new();
         private ResultadoPrueba? _baselinePrueba = null;
+        private CancellationTokenSource? _benchmarkCts;
+        private int _benchmarkTargetPid = 0;
+        private string _benchmarkTargetName = string.Empty;
 
         public MainWindow(
             IServicioHardware servicioHardware, 
@@ -368,79 +374,180 @@ namespace WindowsPerformanceEngine
                 }
             }
         }
-        private async void BtnTomarBaseline_Click(object sender, RoutedEventArgs e)
+        private void BtnActualizarProcesos_Click(object sender, RoutedEventArgs e)
         {
-            TxtConsola.Text = "Tomando Baseline inicial. Ejecutando Benchmark...";
-            
-            string hostPing = TxtHostPing.Text;
-            if (string.IsNullOrWhiteSpace(hostPing)) hostPing = "8.8.8.8";
-            
-            _baselinePrueba = await _motorPruebas.EjecutarPruebaRapidaAsync(hostPing);
-            
-            TxtConsola.Text = "Baseline Guardado.\n" +
-                              $"FPS Promedio (DWM/Global): {(_baselinePrueba.FpsPromedio == -1 ? "NO DISP." : _baselinePrueba.FpsPromedio.ToString("F0") + " FPS")}\n" +
-                              "Por favor, aplica las optimizaciones, cierra procesos o reinicia, y luego usa la opción lateral 'Rendimiento y Red' para medir el cambio.";
+            CargarProcesosComboBox();
         }
 
-        private async void BtnPruebas_Click(object sender, RoutedEventArgs e)
+        private void CargarProcesosComboBox()
         {
-            ResaltarBotonActivo(sender);
-            OcultarPaneles();
-            
-            TxtConsola.Text = "Iniciando Benchmark de CPU y Telemetría de GPU/Red (ETW/PerfCounters)...\nEspera unos segundos...";
-            
-            // Medir GPU en vivo
-            var gpuPerf = _motorGpu.MedirUtilizacionActual();
-            
-            string hostPing = TxtHostPing.Text;
-            if (string.IsNullOrWhiteSpace(hostPing)) hostPing = "8.8.8.8";
+            try
+            {
+                var procesos = Process.GetProcesses()
+                    .Where(p => !string.IsNullOrEmpty(p.MainWindowTitle))
+                    .OrderBy(p => p.ProcessName)
+                    .Select(p => new { Display = $"{p.ProcessName}.exe — PID {p.Id}", Pid = p.Id, Nombre = p.ProcessName })
+                    .ToList();
 
-            // Medir CPU/Red
-            var resultado = await _motorPruebas.EjecutarPruebaRapidaAsync(hostPing);
+                CmbProcesos.ItemsSource = procesos;
+                CmbProcesos.DisplayMemberPath = "Display";
+                CmbProcesos.SelectedValuePath = "Pid";
+                if (procesos.Count > 0) CmbProcesos.SelectedIndex = 0;
+                
+                TxtConsola.Text = $"Se encontraron {procesos.Count} procesos con ventana activa.\n";
+            }
+            catch (Exception ex)
+            {
+                TxtConsola.Text = $"Error al obtener procesos: {ex.Message}\n";
+            }
+        }
+
+        private async void BtnIniciarBenchmark_Click(object sender, RoutedEventArgs e)
+        {
+            if (CmbProcesos.SelectedValue == null)
+            {
+                TxtConsola.Text = "Por favor, selecciona un proceso objetivo primero.\n";
+                return;
+            }
+
+            dynamic selectedProcess = CmbProcesos.SelectedItem;
+            _benchmarkTargetPid = selectedProcess.Pid;
+            _benchmarkTargetName = selectedProcess.Nombre;
+
+            double durationSeconds = 0;
+            switch (CmbDuracion.SelectedIndex)
+            {
+                case 1: durationSeconds = 30; break;
+                case 2: durationSeconds = 60; break;
+                case 3: durationSeconds = 300; break;
+            }
+
+            BtnIniciarBenchmark.IsEnabled = false;
+            BtnActualizarProcesos.IsEnabled = false;
+            CmbProcesos.IsEnabled = false;
+            CmbDuracion.IsEnabled = false;
+            BtnDetenerBenchmark.IsEnabled = true;
+            BtnDetenerBenchmark.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.DarkRed);
+
+            _benchmarkCts = new CancellationTokenSource();
+            _motorPruebas.IniciarBenchmarkGaming(_benchmarkTargetPid);
             
-            // Actualizar ProgressBars
-            PnlGraficosBenchmark.Visibility = Visibility.Visible;
-            AnimarTransicionVista();
+            TxtEstadoBenchmark.Text = $"Estado: Capturando PID {_benchmarkTargetPid}...";
+            TxtConsola.Text = $"Iniciando Benchmark ETW para {_benchmarkTargetName} (PID: {_benchmarkTargetPid})...\n";
+
+            try
+            {
+                var sw = Stopwatch.StartNew();
+                while (!_benchmarkCts.Token.IsCancellationRequested)
+                {
+                    await Task.Delay(1000, _benchmarkCts.Token);
+                    TxtDuracionValor.Text = $"{sw.Elapsed.TotalSeconds:F1} s";
+
+                    // Verificar si el proceso sigue vivo
+                    try
+                    {
+                        var p = Process.GetProcessById(_benchmarkTargetPid);
+                        if (p.HasExited) throw new Exception("HasExited");
+                    }
+                    catch
+                    {
+                        TxtEstadoBenchmark.Text = "Estado: Interrumpido (Proceso cerrado)";
+                        TxtConsola.Text += "El proceso objetivo se ha cerrado. Deteniendo captura...\n";
+                        FinalizarBenchmark(sw.Elapsed.TotalSeconds);
+                        return;
+                    }
+
+                    if (durationSeconds > 0 && sw.Elapsed.TotalSeconds >= durationSeconds)
+                    {
+                        FinalizarBenchmark(sw.Elapsed.TotalSeconds);
+                        return;
+                    }
+                }
+            }
+            catch (TaskCanceledException) { }
+        }
+
+        private void BtnDetenerBenchmark_Click(object sender, RoutedEventArgs e)
+        {
+            if (_benchmarkCts != null && !_benchmarkCts.IsCancellationRequested)
+            {
+                _benchmarkCts.Cancel();
+                FinalizarBenchmark(0); // El valor exacto se calculará o actualizará en la UI ya
+            }
+        }
+
+        private void FinalizarBenchmark(double duracionReal)
+        {
+            if (_benchmarkCts != null)
+            {
+                _benchmarkCts.Cancel();
+                _benchmarkCts.Dispose();
+                _benchmarkCts = null;
+            }
+
+            TxtEstadoBenchmark.Text = "Estado: Finalizando...";
             
+            var resultado = _motorPruebas.DetenerBenchmarkGaming(_benchmarkTargetName, duracionReal);
+
+            BtnIniciarBenchmark.IsEnabled = true;
+            BtnActualizarProcesos.IsEnabled = true;
+            CmbProcesos.IsEnabled = true;
+            CmbDuracion.IsEnabled = true;
+            BtnDetenerBenchmark.IsEnabled = false;
+            BtnDetenerBenchmark.Background = new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#4A5568"));
+
+            TxtEstadoBenchmark.Text = "Estado: Completado";
+            TxtDuracionValor.Text = $"{resultado.DuracionSegundos:F1} s";
+            TxtMuestrasValor.Text = $"{resultado.MuestrasValidas}";
+
+            if (resultado.MuestrasValidas < 2)
+            {
+                TxtEstadoBenchmark.Text = "Estado: Datos insuficientes";
+                TxtConsola.Text += "Muestras insuficientes para calcular resultados reales.\n";
+                PbFps.Value = 0; TxtFpsValor.Text = "NO DISP.";
+                PbLows.Value = 0; TxtLowsValor.Text = "NO DISP.";
+                PbZeroOneLows.Value = 0; TxtZeroOneLowsValor.Text = "NO DISP.";
+                PbFrametime.Value = 0; TxtFrametimeValor.Text = "NO DISP.";
+                return;
+            }
+
             PbFps.Value = Math.Max(0, Math.Min(resultado.FpsPromedio, 1000));
-            TxtFpsValor.Text = resultado.FpsPromedio == -1 ? "NO DISP." : $"{resultado.FpsPromedio:F1} fps";
+            TxtFpsValor.Text = $"{resultado.FpsPromedio:F1} fps";
             
             PbLows.Value = Math.Max(0, Math.Min(resultado.Fps1Porciento, 1000));
-            TxtLowsValor.Text = resultado.Fps1Porciento == -1 ? "NO DISP." : $"{resultado.Fps1Porciento:F1} fps";
-            
-            PbFrametime.Value = Math.Max(0, Math.Min(resultado.FrametimePromedioMs, 100));
-            TxtFrametimeValor.Text = resultado.FrametimePromedioMs == -1 ? "NO DISP." : $"{resultado.FrametimePromedioMs:F2} ms";
+            TxtLowsValor.Text = $"{resultado.Fps1Porciento:F1} fps";
 
-            string vramText = gpuPerf.UtilizacionVram == -1 ? "NO DISPONIBLE" : 
-                              gpuPerf.UtilizacionVram == -2 ? "No Determinable (Limitación de API)" : 
-                              $"{gpuPerf.UtilizacionVram:F1} GB";
-
-            TxtConsola.Text = $"--- DIAGNÓSTICO ESTADÍSTICO ---\n" +
-                             $"CPU/ETW Promedio (DWM): {(resultado.FpsPromedio == -1 ? "NO DISP." : resultado.FpsPromedio.ToString("F0") + " FPS")}\n" +
-                             $"Frametime 1% Lows (DWM): {(resultado.Fps1Porciento == -1 ? "NO DISP." : resultado.Fps1Porciento.ToString("F0") + " FPS")}\n" +
-                             $"Frametime Promedio: {(resultado.FrametimePromedioMs == -1 ? "NO DISP." : resultado.FrametimePromedioMs.ToString("F2") + " ms")}\n" +
-                             $"Utilización GPU 3D (PerfCounter): {gpuPerf.UtilizacionGpu:F1}%\n" +
-                             $"VRAM: {vramText}\n\n" +
-                             $"--- DIAGNÓSTICO DE RED ---\n" +
-                             $"DNS Lookup Time: {resultado.DnsLookupMs:F1} ms\n" +
-                             $"Latencia ({hostPing}): {resultado.LatenciaRedMs:F1} ms\n" +
-                             $"Jitter (Estabilidad): {resultado.JitterMs:F2} ms\n" +
-                             $"Packet Loss: {resultado.PacketLossPorcentaje:F1} %\n\n";
-
-            if (_baselinePrueba != null)
+            if (resultado.Fps01Porciento > 0)
             {
-                TxtConsola.Text += "--- COMPARACIÓN CON BASELINE ---\n";
-                // Ejecutar Motor de Regresión real
-                var regresionInfo = await _motorRegresion.EvaluarYRevertirSiEsNecesarioAsync(_baselinePrueba, resultado, new WindowsPerformanceEngine.Motor.Dominio.Modelos.Transaccion());
-                TxtConsola.Text += $"{regresionInfo.Detalle}\n";
-                
-                // Limpiar el baseline después de comparar
-                _baselinePrueba = null;
+                PbZeroOneLows.Value = Math.Max(0, Math.Min(resultado.Fps01Porciento, 1000));
+                TxtZeroOneLowsValor.Text = $"{resultado.Fps01Porciento:F1} fps";
             }
             else
             {
-                TxtConsola.Text += "Nota: No se detectó un Baseline previo. Usa 'Tomar Baseline' para habilitar el Motor de Regresión.\n";
+                PbZeroOneLows.Value = 0;
+                TxtZeroOneLowsValor.Text = "NO DISP.";
             }
+            
+            PbFrametime.Value = Math.Max(0, Math.Min(resultado.FrametimePromedioMs, 100));
+            TxtFrametimeValor.Text = $"{resultado.FrametimePromedioMs:F2} ms";
+
+            TxtConsola.Text += $"--- DIAGNÓSTICO GAMING ---\n" +
+                             $"Proceso: {resultado.ProcesoObjetivo} (PID: {resultado.PidObjetivo})\n" +
+                             $"Fuente: ETW / DxgKrnl / Present (Aislado por PID)\n" +
+                             $"FPS Promedio: {resultado.FpsPromedio:F1} FPS\n" +
+                             $"1% Lows: {resultado.Fps1Porciento:F1} FPS\n" +
+                             $"0.1% Lows: {(resultado.Fps01Porciento > 0 ? resultado.Fps01Porciento.ToString("F1") + " FPS" : "NO DISP. (Requiere > 1000 muestras)")}\n" +
+                             $"Frametime Promedio: {resultado.FrametimePromedioMs:F2} ms\n" +
+                             $"Muestras Válidas: {resultado.MuestrasValidas}\n\n";
+        }
+
+        private void BtnPruebas_Click(object sender, RoutedEventArgs e)
+        {
+            ResaltarBotonActivo(sender);
+            OcultarPaneles();
+            PnlGraficosBenchmark.Visibility = Visibility.Visible;
+            AnimarTransicionVista();
+            CargarProcesosComboBox();
         }
         public class ViewModelHistorial
         {

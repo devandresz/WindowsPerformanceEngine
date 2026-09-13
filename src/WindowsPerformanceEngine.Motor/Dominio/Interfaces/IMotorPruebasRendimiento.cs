@@ -10,5 +10,7 @@ namespace WindowsPerformanceEngine.Motor.Dominio.Interfaces
     {
         Task<ResultadoPrueba> EjecutarPruebaRapidaAsync(string pingHost = "8.8.8.8");
         Task<double> MedirLatenciaRedAsync(string host = "8.8.8.8");
+        void IniciarBenchmarkGaming(int pid);
+        ResultadoPrueba DetenerBenchmarkGaming(string nombreProceso, double duracionSegundos);
     }
 }

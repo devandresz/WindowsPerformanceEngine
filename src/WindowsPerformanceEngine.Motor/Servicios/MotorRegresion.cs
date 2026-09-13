@@ -40,13 +40,16 @@ namespace WindowsPerformanceEngine.Motor.Servicios
             bool regresionLows = despues.Fps1Porciento < umbralLows;
             bool regresionFrametime = despues.FrametimePromedioMs > umbralFrametime;
 
+            bool esGaming = despues.PidObjetivo > 0;
+            string etiquetaContexto = esGaming ? $"Gaming Real ({despues.ProcesoObjetivo} - PID {despues.PidObjetivo})" : "Estabilidad DWM";
+            string etiquetaMetrica = esGaming ? "Juego" : "DWM";
+
             if (regresionPunta || regresionLows || regresionFrametime)
             {
                 informe.SeDetectoRegresion = true;
-                informe.Detalle = $"Carga Gaming Real: No Determinada.\n" +
-                                  $"REGRESIÓN DETECTADA EN ESTABILIDAD DWM (Fuera del Margen Estadístico):\n" +
-                                  $"FPS Promedio (DWM): {antes.FpsPromedio:F1} -> {despues.FpsPromedio:F1}\n" +
-                                  $"1% Lows (DWM): {antes.Fps1Porciento:F1} -> {despues.Fps1Porciento:F1}\n" +
+                informe.Detalle = $"REGRESIÓN DETECTADA EN {etiquetaContexto} (Fuera del Margen Estadístico):\n" +
+                                  $"FPS Promedio ({etiquetaMetrica}): {antes.FpsPromedio:F1} -> {despues.FpsPromedio:F1}\n" +
+                                  $"1% Lows ({etiquetaMetrica}): {antes.Fps1Porciento:F1} -> {despues.Fps1Porciento:F1}\n" +
                                   $"Frametime: {antes.FrametimePromedioMs:F2}ms -> {despues.FrametimePromedioMs:F2}ms\n" +
                                   $"Iniciando Auto-Rollback...";
 
@@ -55,9 +58,8 @@ namespace WindowsPerformanceEngine.Motor.Servicios
             }
             else
             {
-                informe.Detalle = $"Carga Gaming Real: No Determinada.\n" +
-                                  $"Estabilidad del Escritorio (DWM) validada estadísticamente. Rendimiento estable o mejorado.\n" +
-                                  $"1% Lows (DWM): {antes.Fps1Porciento:F1} -> {despues.Fps1Porciento:F1}";
+                informe.Detalle = $"{etiquetaContexto} validada estadísticamente. Rendimiento estable o mejorado.\n" +
+                                  $"1% Lows ({etiquetaMetrica}): {antes.Fps1Porciento:F1} -> {despues.Fps1Porciento:F1}";
             }
 
             return informe;

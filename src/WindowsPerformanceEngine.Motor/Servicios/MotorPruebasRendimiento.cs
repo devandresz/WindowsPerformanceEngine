@@ -14,10 +14,49 @@ namespace WindowsPerformanceEngine.Motor.Servicios
         private readonly IDiagnosticador _diagnosticador;
         private readonly MotorFpsEtw _motorFps;
 
+        private int _currentPid = 0;
+
         public MotorPruebasRendimiento(IDiagnosticador diagnosticador, MotorFpsEtw motorFps)
         {
             _diagnosticador = diagnosticador;
             _motorFps = motorFps;
+        }
+
+        public void IniciarBenchmarkGaming(int pid)
+        {
+            _currentPid = pid;
+            _motorFps.IniciarCaptura(pid);
+        }
+
+        public ResultadoPrueba DetenerBenchmarkGaming(string nombreProceso, double duracionSegundos)
+        {
+            _motorFps.DetenerCaptura();
+            var (fps, ft, lows, zeroOneLows, muestras) = _motorFps.ObtenerResultados();
+
+            var resultado = new ResultadoPrueba
+            {
+                PidObjetivo = _currentPid,
+                ProcesoObjetivo = nombreProceso,
+                DuracionSegundos = duracionSegundos,
+                MuestrasValidas = muestras
+            };
+
+            if (fps > 0)
+            {
+                resultado.FpsPromedio = fps;
+                resultado.FrametimePromedioMs = ft;
+                resultado.Fps1Porciento = lows;
+                resultado.Fps01Porciento = zeroOneLows;
+            }
+            else
+            {
+                resultado.FpsPromedio = -1;
+                resultado.FrametimePromedioMs = -1;
+                resultado.Fps1Porciento = -1;
+                resultado.Fps01Porciento = -1;
+            }
+
+            return resultado;
         }
 
         public async Task<ResultadoPrueba> EjecutarPruebaRapidaAsync(string pingHost = "8.8.8.8")
@@ -36,7 +75,7 @@ namespace WindowsPerformanceEngine.Motor.Servicios
                 
                 _motorFps.DetenerCaptura();
                 
-                var (fps, ft, lows, zeroOneLows) = _motorFps.ObtenerResultados();
+                var (fps, ft, lows, zeroOneLows, muestras) = _motorFps.ObtenerResultados();
 
                 if (fps > 0)
                 {
